@@ -1,0 +1,129 @@
+import tkinter as tk
+from tkinter import scrolledtext,filedialog,messagebox
+import spacy
+from spacy.lang.en.stop_words import STOP_WORDS
+from string import punctuation
+from heapq import nlargest
+import os
+
+# Load Spacy model
+nlp = spacy.load('en_core_web_sm')
+
+# Initialize punctuation
+punctuation = punctuation + '\n'
+
+def summarize_text():
+    input_text = ""
+
+    if input_choice.get() == "Text":
+        input_text = text_input.get("1.0", tk.END)
+    elif input_choice.get() == "File":
+        try:
+            with open(selected_file.get(), 'r') as file:
+                input_text = file.read()
+        except FileNotFoundError:
+            messagebox.showerror("Error", "Selected file not found.")
+            return
+    
+    # Perform text summarization
+    doc = nlp(input_text)
+    tokens = [token.text for token in doc]
+    word_freq = {}
+    stop_words = list(STOP_WORDS)
+
+    for word in doc:
+        if word.text.lower() not in stop_words:
+            if word.text.lower() not in punctuation:
+                if word.text not in word_freq.keys():
+                    word_freq[word.text] = 1
+                else:
+                    word_freq[word.text] += 1
+
+    max_freq = max(word_freq.values())
+
+    for word in word_freq.keys():
+        word_freq[word] = word_freq[word] / max_freq
+
+    sent_tokens = [sent for sent in doc.sents]
+
+    sent_score = {}
+
+    for sent in sent_tokens:
+        for word in sent:
+            if word.text.lower() in word_freq.keys():
+                if sent not in sent_score.keys():
+                    sent_score[sent] = word_freq[word.text.lower()]
+                else:
+                    sent_score[sent] += word_freq[word.text.lower()]
+
+    summary_length = int(len(sent_score) * 0.3)
+    summary = nlargest(summary_length, iterable=sent_score, key=sent_score.get)
+
+    final_summary = [word.text for word in summary]
+    summary = " ".join(final_summary)
+
+    # Display the summary in the GUI
+    summary_output.delete("1.3", tk.END)
+    summary_output.insert(tk.END, summary)
+
+def select_file():
+    file_path = tk.filedialog.askopenfilename(filetypes=[("Text Files", "*.txt")])
+    if file_path:
+        selected_file.set(file_path)
+        file_name = os.path.basename(file_path)
+        text_input.delete("1.0", tk.END)
+        text_input.insert(tk.END, file_name)
+
+    
+# Create the GUI window
+root = tk.Tk()
+root.title("Text Summarizer")
+root.geometry("700x550")
+
+# Create input choice (text or file)
+input_choice = tk.StringVar()
+input_choice.set("Text")
+
+
+
+def toggle_select_file_button():
+    if input_choice.get() == "File":
+        select_file_button.pack(anchor="w")
+    else:
+        select_file_button.pack_forget()
+
+# ... Rest of the code ...
+
+# Create radio buttons for input choice
+text_input_radio = tk.Radiobutton(root, text="Text", variable=input_choice, value="Text", command=toggle_select_file_button)
+text_input_radio.pack(anchor="w")
+file_input_radio = tk.Radiobutton(root, text="File", variable=input_choice, value="File", command=toggle_select_file_button)
+file_input_radio.pack(anchor="w")
+
+# Create select file button
+select_file_button = tk.Button(root, text="Select File", command=select_file, bg="green", width=20 )
+toggle_select_file_button()    # Initially hide the button
+
+
+
+
+
+# Create input text area
+text_input = scrolledtext.ScrolledText(root, height=10, wrap="word", padx=10, pady=10)
+text_input.pack(fill="both", expand=True)
+
+# Create summary button
+summarize_button = tk.Button(root, text="Summarize", command=summarize_text,width=25, relief="solid", bd=3, bg="lightblue", fg="black", padx=10, pady=5)
+summarize_button.pack(pady=10)
+
+
+# Create output text area
+summary_output = scrolledtext.ScrolledText(root, height=10, wrap="word", padx=10, pady=10)
+summary_output.pack(fill="both", expand=True)
+
+
+# Variable to store selected file path
+selected_file = tk.StringVar()
+
+# Start the GUI event loop
+root.mainloop()
